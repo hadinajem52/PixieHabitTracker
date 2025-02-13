@@ -19,13 +19,19 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F8BC68fff"
-      }
+      },
+      "package": "com.hnjm123.PixieHabitTracker"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "20339ee6-10ec-46ac-8831-92645545d501"
+      }
+    }
   }
 }

@@ -19,7 +19,7 @@ import AppLoading from 'expo-app-loading';
 import LottieView from 'lottie-react-native';
 
 export default function App() {
-  // Helper to generate time options (every 30 minutes)
+  // Generate time options
   const generateTimeOptions = () => {
     const times = [];
     for (let hour = 0; hour < 24; hour++) {
@@ -35,52 +35,59 @@ export default function App() {
 
   const timeOptions = generateTimeOptions();
 
-  // Preset categories for the picker dropdown
+  // Preset categories
   const presetCategories = [
-    'General', 
-    'Health', 
-    'Work', 
-    'Education', 
-    'Finance', 
-    'Fitness', 
-    'Personal Growth', 
-    'Relationships', 
-    'Hobbies', 
-    'Mental Well-being', 
-    'Productivity'
+    'General',
+    'Health',
+    'Work',
+    'Education',
+    'Finance',
+    'Fitness',
+    'Personal Growth',
+    'Relationships',
+    'Hobbies',
+    'Mental Well-being',
+    'Productivity',
   ];
-  
+
+  // Preset colors for habits
+  const presetColors = [
+    "#F8BC68", // Gold
+    "#222222", // Dark
+    "#4caf50", // Green
+    "#1976d2", // Blue
+    "#d32f2f", // Red
+    "#FF5733", // Orange
+    "#33FF57", // Lime
+    "#3357FF", // Sky
+    "#FF33A8", // Pink
+    "#FFD133", // Yellow
+  ];
+
   const [habits, setHabits] = useState([]);
-  // State for adding a new habit (using a modal)
   const [input, setInput] = useState('');
-  // Instead of a text input, we now use a picker:
   const [selectedTime, setSelectedTime] = useState('08:00 AM');
   const [selectedCategory, setSelectedCategory] = useState('General');
+  const [habitColor, setHabitColor] = useState(''); // Selected color for new habit
 
   const [showAnimation, setShowAnimation] = useState(false);
 
-  // State for the Add Habit modal visibility
   const [addHabitModalVisible, setAddHabitModalVisible] = useState(false);
 
-  // States for editing a habit
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [habitToEdit, setHabitToEdit] = useState(null);
   const [editInput, setEditInput] = useState('');
   const [editCategory, setEditCategory] = useState('General');
+  const [editColor, setEditColor] = useState(''); // Selected color for editing habit
 
-  // States for habit details modal
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [habitForDetails, setHabitForDetails] = useState(null);
   const [manualDateInput, setManualDateInput] = useState('');
-  const [habitInfoInput, setHabitInfoInput] = useState(''); // Additional info
-
-  // Filter state: category string selected via buttons
+  const [habitInfoInput, setHabitInfoInput] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
 
-  // Sorting mode state: if true sort by streak, otherwise by creation date
   const [sortByStreak, setSortByStreak] = useState(false);
 
-  // Refs for animations
   const lottieRef = useRef(null);
   const backgroundRef = useRef(null);
 
@@ -88,7 +95,11 @@ export default function App() {
     PixelFont: require('./assets/fonts/PixelFont.ttf'),
   });
 
-  // Load saved habits from AsyncStorage on mount
+  // Compute today's date (for display and comparisons)
+  const todayDate = new Date().toLocaleDateString();
+  const todayISO = new Date().toISOString().split('T')[0];
+
+  // Load habits from AsyncStorage
   useEffect(() => {
     (async () => {
       try {
@@ -102,7 +113,7 @@ export default function App() {
     })();
   }, []);
 
-  // Save habits to AsyncStorage whenever they change
+  // Save habits to AsyncStorage
   useEffect(() => {
     (async () => {
       try {
@@ -113,19 +124,47 @@ export default function App() {
     })();
   }, [habits]);
 
+  // Daily refresh effect: reset "completedToday" if the latest history date is not today.
+  useEffect(() => {
+    // Run once on mount
+    setHabits((prevHabits) =>
+      prevHabits.map((habit) => {
+        if (!habit.history || habit.history[0] !== todayISO) {
+          return { ...habit, completedToday: false };
+        }
+        return habit;
+      })
+    );
+  }, []);
+
+  // Also check every minute (in case the app stays open overnight)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const currentISO = new Date().toISOString().split('T')[0];
+      setHabits((prevHabits) =>
+        prevHabits.map((habit) => {
+          if (!habit.history || habit.history[0] !== currentISO) {
+            return { ...habit, completedToday: false };
+          }
+          return habit;
+        })
+      );
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   if (!fontsLoaded) {
     return <AppLoading />;
   }
 
-  // Add a new habit using the selected time from the picker
   const addHabit = () => {
     if (input.trim()) {
-      const today = new Date().toISOString().split('T')[0];
       const newHabit = {
         key: Date.now().toString(),
         title: input,
         category: selectedCategory || 'General',
         time: selectedTime,
+        color: habitColor || '#222222', // Use the selected color or default
         completedToday: false,
         streak: 0,
         history: [],
@@ -134,8 +173,9 @@ export default function App() {
       };
       setHabits([...habits, newHabit]);
       setInput('');
-      setSelectedTime('12:00 AM'); // Reset to default
+      setSelectedTime('12:00 AM');
       setSelectedCategory('General');
+      setHabitColor('');
       setAddHabitModalVisible(false);
     }
   };
@@ -191,6 +231,7 @@ export default function App() {
     setHabitToEdit(habit);
     setEditInput(habit.title);
     setEditCategory(habit.category || 'General');
+    setEditColor(habit.color || '');
     setEditModalVisible(true);
   };
 
@@ -199,7 +240,12 @@ export default function App() {
       setHabits((prevHabits) =>
         prevHabits.map((habit) =>
           habit.key === habitToEdit.key
-            ? { ...habit, title: editInput, category: editCategory || 'General' }
+            ? {
+                ...habit,
+                title: editInput,
+                category: editCategory || 'General',
+                color: editColor || habit.color || '#222222',
+              }
             : habit
         )
       );
@@ -207,6 +253,7 @@ export default function App() {
       setHabitToEdit(null);
       setEditInput('');
       setEditCategory('General');
+      setEditColor('');
     }
   };
 
@@ -311,20 +358,30 @@ export default function App() {
     return Array.from(new Set(categories));
   };
 
-  // Updated renderHabit function with chain connectors.
+  const sortedHabits = () => {
+    const filtered = habits.filter((habit) => {
+      const habitCategory = (habit.category || 'General').toLowerCase();
+      const activeFilter = filterCategory ? filterCategory.toLowerCase() : '';
+      return activeFilter ? habitCategory === activeFilter : true;
+    });
+    const sortedList = [...filtered];
+    if (sortByStreak) {
+      sortedList.sort((a, b) => b.streak - a.streak);
+    } else {
+      sortedList.sort((a, b) => b.createdAt - a.createdAt);
+    }
+    return sortedList;
+  };
+
   const renderHabit = ({ item, index }) => {
-    // Since FlatList uses sortedHabits() as its data,
-    // we can use that to determine the first and last items.
     const sortedData = sortedHabits();
     const isFirst = index === 0;
     const isLast = index === sortedData.length - 1;
 
     return (
       <View style={styles.chainContainer}>
-        {/* Connector above if not the first item */}
         {!isFirst && <View style={styles.connectorTop} />}
-        
-        <View style={styles.habitItem}>
+        <View style={[styles.habitItem, { backgroundColor: item.color || '#222222' }]}>
           <View style={styles.habitHeader}>
             <View>
               <Text style={styles.habitText}>{item.title}</Text>
@@ -358,30 +415,9 @@ export default function App() {
             <Text style={styles.infoText}>Streak: {item.streak}</Text>
           </View>
         </View>
-        {/* Connector below if not the last item */}
         {!isLast && <View style={styles.connectorBottom} />}
       </View>
     );
-  };
-
-  // Updated sortedHabits function
-  const sortedHabits = () => {
-    // Filter the habits first
-    const filtered = habits.filter((habit) => {
-      const habitCategory = (habit.category || 'General').toLowerCase();
-      const activeFilter = filterCategory ? filterCategory.toLowerCase() : '';
-      return activeFilter ? habitCategory === activeFilter : true;
-    });
-    // Clone the filtered array to avoid in-place mutation issues.
-    const sortedList = [...filtered];
-    if (sortByStreak) {
-      // Sort so that habits with a higher streak come first
-      sortedList.sort((a, b) => b.streak - a.streak);
-    } else {
-      // Sort so that the most recently created habits come first
-      sortedList.sort((a, b) => b.createdAt - a.createdAt);
-    }
-    return sortedList;
   };
 
   return (
@@ -413,6 +449,9 @@ export default function App() {
               style={styles.titleAnimation}
             />
           </View>
+
+          {/* Display Today's Date */}
+          <Text style={styles.dateText}>Today: {todayDate}</Text>
 
           <View style={styles.filterContainer}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -451,7 +490,7 @@ export default function App() {
 
           <FlatList
             data={sortedHabits()}
-            extraData={[habits, sortByStreak, filterCategory]} // force re-render on sort/filter change
+            extraData={[habits, sortByStreak, filterCategory]}
             renderItem={renderHabit}
             keyExtractor={(item) => item.key}
             ListEmptyComponent={
@@ -489,7 +528,6 @@ export default function App() {
                     placeholder="Habit Title"
                     placeholderTextColor="#ccc"
                   />
-                  {/* Time Picker replaces the text input for time */}
                   <View style={styles.pickerContainer}>
                     <Picker
                       selectedValue={selectedTime}
@@ -514,6 +552,25 @@ export default function App() {
                       ))}
                     </Picker>
                   </View>
+                  {/* Preset Color Palette for habit color */}
+                  <Text style={styles.label}>Choose Habit Color:</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={{ marginBottom: 15 }}
+                  >
+                    {presetColors.map((color, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        onPress={() => setHabitColor(color)}
+                        style={[
+                          styles.colorCircle,
+                          { backgroundColor: color },
+                          habitColor === color && { borderWidth: 3, borderColor: '#fff' },
+                        ]}
+                      />
+                    ))}
+                  </ScrollView>
                 </View>
                 <View style={styles.modalButtons}>
                   <TouchableOpacity style={styles.modalButton} onPress={addHabit}>
@@ -558,6 +615,25 @@ export default function App() {
                     ))}
                   </Picker>
                 </View>
+                {/* Preset Color Palette for editing habit color */}
+                <Text style={styles.label}>Choose Habit Color:</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ marginBottom: 15 }}
+                >
+                  {presetColors.map((color, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      onPress={() => setEditColor(color)}
+                      style={[
+                        styles.colorCircle,
+                        { backgroundColor: color },
+                        editColor === color && { borderWidth: 3, borderColor: '#fff' },
+                      ]}
+                    />
+                  ))}
+                </ScrollView>
                 <View style={styles.modalButtons}>
                   <TouchableOpacity style={styles.modalButton} onPress={saveEdit}>
                     <Text style={styles.buttonText}>Save</Text>
@@ -582,12 +658,12 @@ export default function App() {
           >
             <View style={styles.modalOverlay}>
               <View style={styles.detailsModalContent}>
-              <ScrollView
+                <ScrollView
                   contentContainerStyle={styles.detailsScroll}
                   showsVerticalScrollIndicator={false}
                   overScrollMode="never"
-                >       
-                <Text style={styles.modalTitle}>Habit Details</Text>
+                >
+                  <Text style={styles.modalTitle}>Habit Details</Text>
                   <View style={styles.detailsSection}>
                     <Text style={styles.habitText}>{habitForDetails?.title}</Text>
                     <Text style={styles.infoText}>
@@ -664,7 +740,6 @@ export default function App() {
             </View>
           </Modal>
 
-          {/* Floating Action Button */}
           <TouchableOpacity style={styles.fab} onPress={() => setAddHabitModalVisible(true)}>
             <Text style={styles.fabIcon}>+</Text>
           </TouchableOpacity>
@@ -695,7 +770,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#222',
+    backgroundColor: '#222222',
     borderWidth: 2,
     borderColor: '#F8BC68',
     borderStyle: 'solid',
@@ -715,6 +790,12 @@ const styles = StyleSheet.create({
     marginLeft: 10,
     textAlign: 'center',
   },
+  dateText: {
+    fontFamily: 'PixelFont',
+    fontSize: 16,
+    color: '#ccc',
+    marginBottom: 10,
+  },
   input: {
     width: '100%',
     fontFamily: 'PixelFont',
@@ -723,7 +804,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderColor: '#F8BC68',
     borderWidth: 2,
-    backgroundColor: '#222',
+    backgroundColor: '#222222',
     marginBottom: 15,
   },
   addButton: {
@@ -745,7 +826,7 @@ const styles = StyleSheet.create({
     width: '100%',
     borderColor: '#F8BC68',
     borderWidth: 2,
-    backgroundColor: '#222',
+    backgroundColor: '#222222',
     marginBottom: 15,
   },
   picker: {
@@ -760,7 +841,6 @@ const styles = StyleSheet.create({
   habitItem: {
     borderColor: '#F8BC68',
     borderWidth: 2,
-    backgroundColor: '#222',
     padding: 10,
     marginVertical: 5,
     width: '100%',
@@ -822,7 +902,7 @@ const styles = StyleSheet.create({
   filterContainer: {
     marginBottom: 15,
     width: '100%',
-    backgroundColor: '#222',
+    backgroundColor: '#222222',
     borderRadius: 7,
     borderWidth: 2,
     borderColor: '#F8BC68',
@@ -866,7 +946,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: '90%',
-    backgroundColor: '#222',
+    backgroundColor: '#222222',
     borderColor: '#F8BC68',
     borderWidth: 2,
     padding: 20,
@@ -975,7 +1055,7 @@ const styles = StyleSheet.create({
     width: 2,
     height: 15,
     borderLeftWidth: 2,
-    borderColor: '#222',
+    borderColor: '#222222',
     borderStyle: 'dotted',
     marginBottom: -2,
   },
@@ -983,9 +1063,24 @@ const styles = StyleSheet.create({
     width: 2,
     height: 15,
     borderLeftWidth: 2,
-    borderColor: '#222',
+    borderColor: '#222222',
     borderStyle: 'dotted',
     marginTop: -2,
+  },
+  // New styles for the color palette
+  label: {
+    fontFamily: 'PixelFont',
+    fontSize: 16,
+    color: '#ccc',
+    marginBottom: 5,
+  },
+  colorCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#F8BC68',
   },
 });
 
